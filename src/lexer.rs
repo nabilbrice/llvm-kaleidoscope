@@ -1,6 +1,6 @@
 use std::{fmt::Error, num::ParseFloatError};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Token<'a> {
     EOF,
     // commands
@@ -11,6 +11,33 @@ enum Token<'a> {
     Number(f64),
 }
 
+// An iterator state holder for tokens
+struct TokenIter<'a> {
+    tok: Token<'a>,
+    remainder: &'a str,
+}
+
+impl<'a> TokenIter<'a> {
+    fn new(input: &'a str) -> TokenIter {
+        TokenIter {
+            // the initial token has to be set to something
+            // maybe EOF can be replaced with None instead
+            tok: Token::EOF,
+            remainder: input,
+        }
+    }
+}
+
+impl<'a> Iterator for TokenIter<'a> {
+    type Item = Token<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (self.tok, self.remainder) = parse_input(self.remainder);
+        Some(self.tok.clone())
+    }
+}
+
+// TODO: ensure the last token in a file can be parsed!
 // parse tokens through a view of the whole input
 // only a view is needed because parsing into the language tokens
 // does not need to mutate the input string
@@ -120,15 +147,6 @@ mod tests {
     }
 
     #[test]
-    fn test_str_view() {
-        let input = "defin+def1 0.1 def Extern extern".to_string();
-
-        let window = StrView { start: 0, end: 1 };
-        assert_eq!("d", input.get(window.start..window.end).unwrap());
-        assert_eq!("def", input.get(0..3).unwrap());
-    }
-
-    #[test]
     fn test_parse_input() {
         let input = "defin+def1 0.1 def Extern extern".to_string();
         let parse_once = parse_input(&input);
@@ -141,5 +159,18 @@ mod tests {
         assert_eq!(Token::Identifier("def1"), parse_thrice.0);
         assert_eq!(Token::Number(0.1), parse_quattro.0);
         assert_eq!(Token::Def, parse_quinto.0);
+    }
+
+    #[test]
+    fn test_token_iter() {
+        let input = "defin+def1 0.1 def Extern extern".to_string();
+        let mut tok_iter = TokenIter::new(&input);
+        assert_eq!(Some(Token::Identifier("defin")), tok_iter.next());
+        assert_eq!(Some(Token::Identifier("+")), tok_iter.next());
+        assert_eq!(Some(Token::Identifier("def1")), tok_iter.next());
+        assert_eq!(Some(Token::Number(0.1)), tok_iter.next());
+        assert_eq!(Some(Token::Def), tok_iter.next());
+        assert_eq!(Some(Token::Identifier("Extern")), tok_iter.next());
+        //        assert_eq!(Some(Token::Extern), tok_iter.next());
     }
 }

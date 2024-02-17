@@ -62,17 +62,17 @@ fn parse_input<'a>(input: &'a str) -> (Token<'a>, &'a str) {
     // and updates the position of the split_index if it is
     // really it is finding the end
     if substr.starts_with(char::is_numeric) {
-        let mut c = chars.next().unwrap();
+        let mut c = chars.next();
         // necessary to avoid stopping at a decimal point
-        while c.is_numeric() || c == '.' {
+        while c.is_some_and(char::is_numeric) || c == Some('.') {
             split_index += 1;
-            c = chars.next().unwrap();
+            c = chars.next();
         }
     } else if substr.starts_with(char::is_alphabetic) {
-        let mut c = chars.next().unwrap();
-        while c.is_alphanumeric() {
+        let mut c = chars.next();
+        while c.is_some_and(char::is_alphanumeric) {
             split_index += 1;
-            c = chars.next().unwrap();
+            c = chars.next();
         }
     };
     // the state of the window has to be managed directly
@@ -171,6 +171,9 @@ mod tests {
         assert_eq!(Some(Token::Number(0.1)), tok_iter.next());
         assert_eq!(Some(Token::Def), tok_iter.next());
         assert_eq!(Some(Token::Identifier("Extern")), tok_iter.next());
-        //        assert_eq!(Some(Token::Extern), tok_iter.next());
+        assert_eq!(Some(Token::Extern), tok_iter.next());
+        assert_eq!(Some(Token::EOF), tok_iter.next());
+        // from here on the token produced should be Token::EOF
+        assert_eq!(Some(Token::EOF), tok_iter.next());
     }
 }

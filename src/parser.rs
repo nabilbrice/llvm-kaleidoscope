@@ -45,34 +45,46 @@ struct FunctionExpr<'a> {
     body: ExprAST<'a>,
 }
 
-// should be impl for the Token?
-fn make_variable<'a>(tok: &Token<'a>) -> ExprAST<'a> {
+// A primitive AST node is without any sub-nodes
+fn make_primitive<'a>(tok: &Token<'a>) -> ExprAST<'a> {
     match tok {
         Token::Identifier(str) => ExprAST::Variable(VariableExpr { name: str }),
-        _ => panic!("Variable not parsed!"),
+        Token::Number(value) => ExprAST::Number(NumberExpr {
+            value: value.clone(),
+        }),
+        _ => panic!("Expected primitive!"),
     }
 }
 
 // should be impl for the Token?
 fn get_opcode<'a>(tok: &Token<'a>) -> Option<char> {
     match tok {
-        Token::Identifier(opcode) => opcode.chars().next(),
-        _ => panic!("Error in retrieving opcode!"),
+        Token::Identifier("+") => Some('+'),
+        Token::Identifier("-") => Some('-'),
+        Token::Identifier("*") => Some('*'),
+        Token::Identifier("<") => Some('<'),
+        _ => None,
     }
 }
 
 // should be impl for the TokenIter?
-fn make_binop<'a>(tok_iter: &'a mut Peekable<TokenIter>) -> ExprAST<'a> {
-    let lhs = make_variable(&tok_iter.next().unwrap());
-    // peek to the next to see if it is a binop:
-    let op = get_opcode(tok_iter.peek().unwrap());
-    tok_iter.next();
-    let rhs = make_variable(tok_iter.peek().unwrap());
+// almost all commands in a program are actually binary operations
+// the basic commands of a asm language are usually binop:
+// move, add, load
+fn make_expr<'a>(tok_iter: &'a mut Peekable<TokenIter>) -> ExprAST<'a> {
+    let lhs = make_primitive(&tok_iter.next().unwrap());
 
-    ExprAST::BinaryOp(Box::new(BinaryOpExpr {
-        op: op.unwrap(),
-        args: [lhs, rhs],
-    }))
+    match get_opcode(tok_iter.peek().expect("Reached end!")) {
+        Some(opcode) => {
+            tok_iter.next();
+            let rhs = make_expr(tok_iter);
+            ExprAST::BinaryOp(Box::new(BinaryOpExpr {
+                op: opcode,
+                args: [lhs, rhs],
+            }))
+        }
+        None => lhs,
+    }
 }
 
 #[cfg(test)]
@@ -80,23 +92,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_binop() {
-        let input = "x + y";
+    fn test_simple_binop() {
+        let input = "x - 2.0";
         let mut tok_iter = TokenIter::new(&input).peekable();
         let mut tmp_iter = TokenIter::new(&input).peekable();
 
-        let lhs = make_variable(tok_iter.peek().unwrap());
+        let lhs = make_primitive(tok_iter.peek().unwrap());
         assert_eq!(ExprAST::Variable(VariableExpr { name: "x" }), lhs);
         tok_iter.next();
         tok_iter.next();
-        let rhs = make_variable(tok_iter.peek().unwrap());
-        assert_eq!(ExprAST::Variable(VariableExpr { name: "y" }), rhs);
+        let rhs = make_primitive(tok_iter.peek().unwrap());
+        assert_eq!(ExprAST::Number(NumberExpr { value: 2.0 }), rhs);
+
+        let result = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
+            op: '-',
+            args: [lhs, rhs],
+        }));
+        let binop = make_expr(&mut tmp_iter);
+        assert_eq!(result, binop)
+    }
+
+    #[test]
+    fn test_complex_binop() {
+        let input = "x + y - 2.0";
+        let mut tok_iter = TokenIter::new(&input).peekable();
+        let mut tmp_iter = TokenIter::new(&input).peekable();
+
+        let prim_x = make_primitive(tmp_iter.peek().unwrap());
+        assert_eq!(ExprAST::Variable(VariableExpr { name: "x" }), prim_x);
+        tmp_iter.next();
+        tmp_iter.next();
+        let prim_y = make_primitive(tmp_iter.peek().unwrap());
+        assert_eq!(ExprAST::Variable(VariableExpr { name: "y" }), prim_y);
+
+        tmp_iter.next();
+        tmp_iter.next();
+        let prim_r = make_primitive(tmp_iter.peek().unwrap());
+        assert_eq!(ExprAST::Number(NumberExpr { value: 2.0 }), prim_r);
+
+        let expr = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
+            op: '-',
+            args: [prim_y, prim_r],
+        }));
 
         let result = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
             op: '+',
-            args: [lhs, rhs],
+            args: [prim_x, expr],
         }));
-        let binop = make_binop(&mut tmp_iter);
-        assert_eq!(result, binop)
+        let binop = make_expr(&mut tok_iter);
+        assert_eq!(result, binop);
     }
 }

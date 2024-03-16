@@ -132,6 +132,29 @@ fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
     ExprAST::Function(Box::new(FunctionExpr { ty, body }))
 }
 
+fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+    let topty = FnTypeExpr {
+        name: "",
+        args: Vec::new(),
+    };
+    let body = make_expr(tokenstream, 0);
+    ExprAST::Function(Box::new(FunctionExpr { ty: topty, body }))
+}
+
+fn make_ast<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+    match tokenstream.peek() {
+        Some(Token::Def) => {
+            tokenstream.next();
+            make_function(tokenstream)
+        }
+        Some(Token::Extern) => {
+            tokenstream.next();
+            make_function(tokenstream)
+        }
+        _ => make_topexpr(tokenstream),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_fndef() {
-        let input = "multiply(x,y) x*y";
+        let input = "def multiply(x,y) x*y";
         let mut tokenstream = TokenIter::new(&input).peekable();
 
         let var_x = VariableExpr { name: "x" };
@@ -213,8 +236,28 @@ mod tests {
             body: fnbody,
         }));
 
-        let function = make_function(&mut tokenstream);
-
+        let function = make_ast(&mut tokenstream);
         assert_eq!(result, function);
+    }
+
+    #[test]
+    fn test_toplevel_expression() {
+        let input = "x - 2.0";
+        let mut tokenstream = TokenIter::new(&input).peekable();
+
+        let anonty = FnTypeExpr {
+            name: "",
+            args: Vec::new(),
+        };
+        let prim_x = ExprAST::Variable(VariableExpr { name: "x" });
+        let prim_2 = ExprAST::Number(NumberExpr { value: 2.0 });
+        let body = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
+            op: '-',
+            args: [prim_x, prim_2],
+        }));
+        let result = ExprAST::Function(Box::new(FunctionExpr { ty: anonty, body }));
+
+        let toplevel = make_ast(&mut tokenstream);
+        assert_eq!(result, toplevel);
     }
 }

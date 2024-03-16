@@ -45,11 +45,9 @@ struct FunctionExpr<'a> {
     body: ExprAST<'a>,
 }
 
-type TokenStream<'a> = Peekable<TokenIter<'a>>;
-
 // A primitive AST node is without any sub-nodes
-fn make_primitive<'a>(tok: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
-    match tok {
+fn make_primitive<'a>(token: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
+    match token {
         Some(Token::Identifier(str)) => Some(ExprAST::Variable(VariableExpr { name: str })),
         Some(Token::Number(value)) => Some(ExprAST::Number(NumberExpr {
             value: value.clone(),
@@ -59,8 +57,8 @@ fn make_primitive<'a>(tok: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
 }
 
 // should be impl for the Token?
-fn get_opcode<'a>(tok: Option<&Token<'a>>) -> (char, i32) {
-    match tok {
+fn get_opcode<'a>(token: Option<&Token<'a>>) -> (char, i32) {
+    match token {
         Some(Token::Identifier("+")) => ('+', 50),
         Some(Token::Identifier("-")) => ('-', 40),
         Some(Token::Identifier("*")) => ('*', 80),
@@ -77,18 +75,18 @@ fn get_opcode<'a>(tok: Option<&Token<'a>>) -> (char, i32) {
 // the prec is the precendence binding value of the operation
 // this currently only makes an expression with all rhs expanded
 // a parser needs to construct the total AST
-fn make_expr<'a>(tok_iter: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
-    let mut lhs = make_primitive(tok_iter.next().as_ref());
+fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
+    let mut lhs = make_primitive(tokenstream.next().as_ref());
 
     loop {
-        let (op, new_prec) = get_opcode(tok_iter.peek());
+        let (op, new_prec) = get_opcode(tokenstream.peek());
         // if the new precedence binding is lower
         // it's time to break out of the loop
         if new_prec < prec {
             break;
         };
-        tok_iter.next();
-        let rhs = make_expr(tok_iter, new_prec);
+        tokenstream.next();
+        let rhs = make_expr(tokenstream, new_prec);
         lhs = Some(ExprAST::BinaryOp(Box::new(BinaryOpExpr {
             op,
             args: [lhs.unwrap(), rhs],
@@ -132,6 +130,7 @@ fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
     ExprAST::Function(Box::new(FunctionExpr { ty, body }))
 }
 
+// parsers a top level expression into an anonymous function
 fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
     let topty = FnTypeExpr {
         name: "",

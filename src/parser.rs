@@ -57,12 +57,12 @@ fn make_primitive<'a>(tok: &Token<'a>) -> ExprAST<'a> {
 }
 
 // should be impl for the Token?
-fn get_opcode<'a>(tok: &Token<'a>) -> Option<char> {
+fn get_opcode<'a>(tok: &Token<'a>) -> Option<(char, i32)> {
     match tok {
-        Token::Identifier("+") => Some('+'),
-        Token::Identifier("-") => Some('-'),
-        Token::Identifier("*") => Some('*'),
-        Token::Identifier("<") => Some('<'),
+        Token::Identifier("+") => Some(('+', 50)),
+        Token::Identifier("-") => Some(('-', 60)),
+        Token::Identifier("*") => Some(('*', 80)),
+        Token::Identifier("<") => Some(('<', 100)),
         _ => None,
     }
 }
@@ -71,15 +71,23 @@ fn get_opcode<'a>(tok: &Token<'a>) -> Option<char> {
 // almost all commands in a program are actually binary operations
 // the basic commands of a asm language are usually binop:
 // move, add, load
-fn make_expr<'a>(tok_iter: &'a mut Peekable<TokenIter>) -> ExprAST<'a> {
+// the prec is the precendence value
+// this currently only makes an expression with all rhs expanded
+// a parser needs to construct the total AST
+fn make_expr<'a>(tok_iter: &'a mut Peekable<TokenIter>, prec: i32) -> ExprAST<'a> {
     let lhs = make_primitive(&tok_iter.next().unwrap());
 
     match get_opcode(tok_iter.peek().expect("Reached end!")) {
         Some(opcode) => {
             tok_iter.next();
-            let rhs = make_expr(tok_iter);
+            let rhs: ExprAST<'a>;
+            if opcode.1 <= prec {
+                rhs = make_expr(tok_iter, prec);
+            } else {
+                rhs = make_primitive(&tok_iter.next().unwrap());
+            }
             ExprAST::BinaryOp(Box::new(BinaryOpExpr {
-                op: opcode,
+                op: opcode.0,
                 args: [lhs, rhs],
             }))
         }
@@ -108,7 +116,7 @@ mod tests {
             op: '-',
             args: [lhs, rhs],
         }));
-        let binop = make_expr(&mut tmp_iter);
+        let binop = make_expr(&mut tmp_iter, 0);
         assert_eq!(result, binop)
     }
 
@@ -130,16 +138,11 @@ mod tests {
         let prim_r = make_primitive(tmp_iter.peek().unwrap());
         assert_eq!(ExprAST::Number(NumberExpr { value: 2.0 }), prim_r);
 
-        let expr = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
-            op: '-',
-            args: [prim_y, prim_r],
-        }));
-
         let result = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
             op: '+',
-            args: [prim_x, expr],
+            args: [prim_x, prim_y],
         }));
-        let binop = make_expr(&mut tok_iter);
+        let binop = make_expr(&mut tok_iter, 0);
         assert_eq!(result, binop);
     }
 }

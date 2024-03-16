@@ -124,33 +124,33 @@ fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'
     }
 }
 
-fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
     let ty = make_signature(tokenstream);
     let body = make_expr(tokenstream, 0);
-    ExprAST::Function(Box::new(FunctionExpr { ty, body }))
+    FunctionExpr { ty, body }
 }
 
 // parsers a top level expression into an anonymous function
-fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
     let topty = FnTypeExpr {
         name: "",
         args: Vec::new(),
     };
     let body = make_expr(tokenstream, 0);
-    ExprAST::Function(Box::new(FunctionExpr { ty: topty, body }))
+    FunctionExpr { ty: topty, body }
 }
 
 fn make_ast<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
     match tokenstream.peek() {
         Some(Token::Def) => {
             tokenstream.next();
-            make_function(tokenstream)
+            ExprAST::Function(Box::new(make_function(tokenstream)))
         }
         Some(Token::Extern) => {
             tokenstream.next();
-            make_function(tokenstream)
+            ExprAST::Function(Box::new(make_function(tokenstream)))
         }
-        _ => make_topexpr(tokenstream),
+        _ => ExprAST::Function(Box::new(make_topexpr(tokenstream))),
     }
 }
 

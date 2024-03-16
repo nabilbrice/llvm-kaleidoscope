@@ -57,13 +57,14 @@ fn make_primitive<'a>(tok: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
 }
 
 // should be impl for the Token?
-fn get_opcode<'a>(tok: &Token<'a>) -> Option<(char, i32)> {
+fn get_opcode<'a>(tok: Option<&Token<'a>>) -> (char, i32) {
     match tok {
-        Token::Identifier("+") => Some(('+', 50)),
-        Token::Identifier("-") => Some(('-', 40)),
-        Token::Identifier("*") => Some(('*', 80)),
-        Token::Identifier("<") => Some(('<', 100)),
-        _ => None,
+        Some(Token::Identifier("+")) => ('+', 50),
+        Some(Token::Identifier("-")) => ('-', 40),
+        Some(Token::Identifier("*")) => ('*', 80),
+        Some(Token::Identifier("<")) => ('<', 100),
+        // default
+        _ => ('#', -1000),
     }
 }
 
@@ -71,18 +72,16 @@ fn get_opcode<'a>(tok: &Token<'a>) -> Option<(char, i32)> {
 // almost all commands in a program are actually binary operations
 // the basic commands of a asm language are usually binop:
 // move, add, load
-// the prec is the precendence value
+// the prec is the precendence binding value of the operation
 // this currently only makes an expression with all rhs expanded
 // a parser needs to construct the total AST
 fn make_expr<'a>(tok_iter: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
     let mut lhs = make_primitive(tok_iter.next().as_ref());
 
     loop {
-        let (op, new_prec) = match get_opcode(tok_iter.peek().unwrap()) {
-            Some((opcode, new_prec)) => (opcode, new_prec),
-            // a negative value to ensure the break when reaching EOF
-            _ => ('#', -1000),
-        };
+        let (op, new_prec) = get_opcode(tok_iter.peek());
+        // if the new precedence binding is lower
+        // it's time to break out of the loop
         if new_prec < prec {
             break;
         };

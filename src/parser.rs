@@ -36,7 +36,7 @@ struct CallOpExpr<'a> {
 #[derive(Debug, PartialEq)]
 struct FnTypeExpr<'a> {
     name: &'a str,
-    args: Vec<&'a str>,
+    args: Vec<VariableExpr<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -44,6 +44,8 @@ struct FunctionExpr<'a> {
     ty: FnTypeExpr<'a>,
     body: ExprAST<'a>,
 }
+
+type TokenStream<'a> = Peekable<TokenIter<'a>>;
 
 // A primitive AST node is without any sub-nodes
 fn make_primitive<'a>(tok: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
@@ -93,6 +95,41 @@ fn make_expr<'a>(tok_iter: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'
         })));
     }
     lhs.unwrap()
+}
+
+fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'a> {
+    let name = match tokenstream.next() {
+        Some(Token::Identifier(str)) => str,
+        _ => panic!("Unparseable name of function"),
+    };
+    match tokenstream.next() {
+        Some(Token::Identifier("(")) => {}
+        Some(Token::Identifier(str)) => eprint!("Expected '(', found {}", str),
+        _ => panic!("Unable to parse arglist for {}", name),
+    };
+    // prepare the arglist
+    let mut arglist = Vec::<VariableExpr<'a>>::new();
+    loop {
+        match tokenstream.next() {
+            Some(Token::Identifier(str)) => arglist.push(VariableExpr { name: str }),
+            _ => panic!("Error parsing arglist!"),
+        };
+        match tokenstream.next() {
+            Some(Token::Identifier(")")) => break,
+            Some(Token::Identifier(",")) => continue,
+            _ => panic!("Something horrible has happened!"),
+        };
+    }
+    FnTypeExpr {
+        name,
+        args: arglist,
+    }
+}
+
+fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+    let ty = make_signature(tokenstream);
+    let body = make_expr(tokenstream, 0);
+    ExprAST::Function(Box::new(FunctionExpr { ty, body }))
 }
 
 #[cfg(test)]
@@ -148,5 +185,36 @@ mod tests {
         }));
         let binop = make_expr(&mut tok_iter, 0);
         assert_eq!(result, binop);
+    }
+
+    #[test]
+    fn test_fndef() {
+        let input = "multiply(x,y) x*y";
+        let mut tokenstream = TokenIter::new(&input).peekable();
+
+        let var_x = VariableExpr { name: "x" };
+        let var_y = VariableExpr { name: "y" };
+
+        let fntype = FnTypeExpr {
+            name: "multiply",
+            args: vec![var_x, var_y],
+        };
+
+        let prim_x = ExprAST::Variable(VariableExpr { name: "x" });
+        let prim_y = ExprAST::Variable(VariableExpr { name: "y" });
+
+        let fnbody = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
+            op: '*',
+            args: [prim_x, prim_y],
+        }));
+
+        let result = ExprAST::Function(Box::new(FunctionExpr {
+            ty: fntype,
+            body: fnbody,
+        }));
+
+        let function = make_function(&mut tokenstream);
+
+        assert_eq!(result, function);
     }
 }

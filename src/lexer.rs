@@ -176,4 +176,17 @@ mod tests {
         // from here on the token produced should be Token::EOF
         assert_eq!(Some(Token::EOF), tok_iter.next());
     }
+
+    #[test]
+    fn test_parens() {
+        let input = "def function(x, y)".to_string();
+        let mut tokenstream = TokenIter::new(&input);
+        assert_eq!(Some(Token::Def), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("function")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("(")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("x")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier(",")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("y")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier(")")), tokenstream.next());
+    }
 }

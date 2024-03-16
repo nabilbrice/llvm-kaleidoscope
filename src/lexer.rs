@@ -1,7 +1,7 @@
 use std::{fmt::Error, num::ParseFloatError};
 
 #[derive(Debug, PartialEq, Clone)]
-enum Token<'a> {
+pub enum Token<'a> {
     EOF,
     // commands
     Def,
@@ -12,13 +12,13 @@ enum Token<'a> {
 }
 
 // An iterator state holder for tokens
-struct TokenIter<'a> {
+pub struct TokenIter<'a> {
     tok: Token<'a>,
     remainder: &'a str,
 }
 
 impl<'a> TokenIter<'a> {
-    fn new(input: &'a str) -> TokenIter {
+    pub fn new(input: &'a str) -> TokenIter {
         TokenIter {
             // the initial token has to be set to something
             // maybe EOF can be replaced with None instead
@@ -41,7 +41,7 @@ impl<'a> Iterator for TokenIter<'a> {
 // parse tokens through a view of the whole input
 // only a view is needed because parsing into the language tokens
 // does not need to mutate the input string
-fn parse_input<'a>(input: &'a str) -> (Token<'a>, &'a str) {
+pub fn parse_input<'a>(input: &'a str) -> (Token<'a>, &'a str) {
     // the view of the whole input, trimming the whitespace start
     let substr = input.trim_start();
     // the counter for where to split later
@@ -175,5 +175,18 @@ mod tests {
         assert_eq!(Some(Token::EOF), tok_iter.next());
         // from here on the token produced should be Token::EOF
         assert_eq!(Some(Token::EOF), tok_iter.next());
+    }
+
+    #[test]
+    fn test_parens() {
+        let input = "def function(x, y)".to_string();
+        let mut tokenstream = TokenIter::new(&input);
+        assert_eq!(Some(Token::Def), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("function")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("(")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("x")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier(",")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier("y")), tokenstream.next());
+        assert_eq!(Some(Token::Identifier(")")), tokenstream.next());
     }
 }

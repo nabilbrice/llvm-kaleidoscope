@@ -22,9 +22,9 @@ pub struct VariableExpr<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-struct BinaryOpExpr<'a> {
-    op: char,
-    args: [ExprAST<'a>; 2],
+pub struct BinaryOpExpr<'a> {
+    pub op: char,
+    pub args: [ExprAST<'a>; 2],
 }
 
 #[derive(Debug, PartialEq)]
@@ -75,7 +75,7 @@ fn get_opcode<'a>(token: Option<&Token<'a>>) -> (char, i32) {
 // the prec is the precendence binding value of the operation
 // this currently only makes an expression with all rhs expanded
 // a parser needs to construct the total AST
-fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
+pub fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
     let mut lhs = make_primitive(tokenstream.next().as_ref());
 
     loop {

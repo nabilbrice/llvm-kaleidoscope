@@ -2,7 +2,7 @@ use crate::lexer::{parse_input, Token, TokenIter};
 use std::iter::Peekable;
 // all of the possible Abstract Syntax Tree node expressions
 #[derive(Debug, PartialEq)]
-enum ExprAST<'a> {
+pub enum ExprAST<'a> {
     Number(NumberExpr),
     Variable(VariableExpr<'a>),
     BinaryOp(Box<BinaryOpExpr<'a>>),
@@ -12,13 +12,13 @@ enum ExprAST<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-struct NumberExpr {
-    value: f64,
+pub struct NumberExpr {
+    pub value: f64,
 }
 
 #[derive(Debug, PartialEq)]
-struct VariableExpr<'a> {
-    name: &'a str,
+pub struct VariableExpr<'a> {
+    pub name: &'a str,
 }
 
 #[derive(Debug, PartialEq)]
@@ -46,7 +46,7 @@ struct FunctionExpr<'a> {
 }
 
 // A primitive AST node is without any sub-nodes
-fn make_primitive<'a>(token: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
+pub fn make_primitive<'a>(token: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
     match token {
         Some(Token::Identifier(str)) => Some(ExprAST::Variable(VariableExpr { name: str })),
         Some(Token::Number(value)) => Some(ExprAST::Number(NumberExpr {

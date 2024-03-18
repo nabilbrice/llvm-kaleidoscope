@@ -22,20 +22,29 @@ impl<'a> Compiler<'a> {
     fn float_codegen(self: &Self, expr: &ExprAST<'a>) -> FloatValue<'a> {
         match expr {
             ExprAST::Number(numexpr) => self.llvm_context.f64_type().const_float(numexpr.value),
+            ExprAST::Variable(varexpr) => self.var_codegen(&varexpr).unwrap().clone(),
             _ => panic!("Oh no!"),
         }
     }
 
     // gets the FloatValue stored in the hashmap of the compiler
-    fn var_codegen(self: &Self, varexpr: VariableExpr) -> Option<&FloatValue<'a>> {
+    fn var_codegen(self: &Self, varexpr: &VariableExpr) -> Option<&FloatValue<'a>> {
         self.variables.get(varexpr.name)
     }
 
     // this can only be called after a basic block has been added
     // which is why a top level expression is an anonymous function
-    fn binop_codegen(self: &Self, binop: BinaryOpExpr<'a>) -> Result<FloatValue, BuilderError> {
-        let lhs = self.float_codegen(&binop.args[0]);
-        let rhs = self.float_codegen(&binop.args[1]);
+    fn binop_codegen(self: &Self, binop: &BinaryOpExpr<'a>) -> Result<FloatValue, BuilderError> {
+        // recursively deal with the substructure
+        let lhs = match &binop.args[0] {
+            ExprAST::BinaryOp(lhs_binop) => self.binop_codegen(lhs_binop)?,
+            _ => self.float_codegen(&binop.args[0]),
+        };
+        let rhs = match &binop.args[1] {
+            ExprAST::BinaryOp(rhs_binop) => self.binop_codegen(rhs_binop)?,
+            _ => self.float_codegen(&binop.args[1]),
+        };
+        // deal with the topmost operand
         match binop.op {
             '+' => self.llvm_builder.build_float_add(lhs, rhs, "addtmp"),
             '-' => self.llvm_builder.build_float_sub(lhs, rhs, "subtmp"),
@@ -86,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_adder_gen() {
-        let input = "2.0 < 5.0";
+        let input = "2.0 + 5.0 + 2.0 - 3.0";
         let mut tokenstream = TokenIter::new(&input).peekable();
         let binop = match make_expr(&mut tokenstream, 0) {
             ExprAST::BinaryOp(binopexpr) => binopexpr,
@@ -109,7 +118,7 @@ mod tests {
         let basic_block = compiler.llvm_context.append_basic_block(function, "entry");
         compiler.llvm_builder.position_at_end(basic_block);
 
-        let code = compiler.binop_codegen(*binop).unwrap();
+        let code = compiler.binop_codegen(&binop).unwrap();
         println!("{code}");
     }
 }

@@ -33,10 +33,28 @@ impl<'a> Compiler<'a> {
 
     // this can only be called after a basic block has been added
     // which is why a top level expression is an anonymous function
-    fn adder_codegen(self: &Self, binop: BinaryOpExpr<'a>) -> Result<FloatValue, BuilderError> {
+    fn binop_codegen(self: &Self, binop: BinaryOpExpr<'a>) -> Result<FloatValue, BuilderError> {
         let lhs = self.float_codegen(&binop.args[0]);
         let rhs = self.float_codegen(&binop.args[1]);
-        self.llvm_builder.build_float_add(lhs, rhs, "addtmp")
+        match binop.op {
+            '+' => self.llvm_builder.build_float_add(lhs, rhs, "addtmp"),
+            '-' => self.llvm_builder.build_float_sub(lhs, rhs, "subtmp"),
+            '*' => self.llvm_builder.build_float_mul(lhs, rhs, "multmp"),
+            '<' => {
+                let uintval = self.llvm_builder.build_float_compare(
+                    inkwell::FloatPredicate::OLT,
+                    lhs,
+                    rhs,
+                    "cmptmp",
+                );
+                self.llvm_builder.build_unsigned_int_to_float(
+                    uintval?,
+                    self.llvm_context.f64_type(),
+                    "cmptmp",
+                )
+            }
+            _ => panic!("Uh oh!"),
+        }
     }
 }
 
@@ -68,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_adder_gen() {
-        let input = "2.0 + 3.0";
+        let input = "2.0 < 5.0";
         let mut tokenstream = TokenIter::new(&input).peekable();
         let binop = match make_expr(&mut tokenstream, 0) {
             ExprAST::BinaryOp(binopexpr) => binopexpr,
@@ -91,7 +109,7 @@ mod tests {
         let basic_block = compiler.llvm_context.append_basic_block(function, "entry");
         compiler.llvm_builder.position_at_end(basic_block);
 
-        let code = compiler.adder_codegen(*binop).unwrap();
+        let code = compiler.binop_codegen(*binop).unwrap();
         println!("{code}");
     }
 }

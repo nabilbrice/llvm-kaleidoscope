@@ -3,9 +3,15 @@ use std::collections::HashMap;
 use inkwell::builder::{Builder, BuilderError};
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::FloatValue;
+use inkwell::types::{BasicMetadataTypeEnum, FloatType};
+use inkwell::values::{
+    BasicMetadataValueEnum, BasicValue, CallSiteValue, FloatValue, FunctionValue,
+};
 
-use crate::parser::{BinaryOpExpr, ExprAST, NumberExpr, VariableExpr};
+use crate::parser::{
+    make_ast, make_function, make_topexpr, BinaryOpExpr, CallOpExpr, ExprAST, FnTypeExpr,
+    FunctionExpr, NumberExpr, VariableExpr,
+};
 
 // not really the compiler but actually the current scope
 struct Compiler<'a> {
@@ -65,6 +71,58 @@ impl<'a> Compiler<'a> {
             _ => panic!("Uh oh!"),
         }
     }
+
+    fn call_codegen(
+        self: &Self,
+        callexpr: &CallOpExpr<'a>,
+    ) -> Result<CallSiteValue<'a>, BuilderError> {
+        let function = self.llvm_module.get_function(callexpr.callee).unwrap();
+        let args: Vec<BasicMetadataValueEnum<'a>> = callexpr
+            .args
+            .iter()
+            .map(|arg| self.float_codegen(arg).into())
+            .collect();
+        self.llvm_builder
+            .build_call(function, args.as_slice(), "calltmp")
+    }
+
+    fn fntype_codegen(self: &Self, fntypeexpr: &FnTypeExpr<'a>) -> FunctionValue<'a> {
+        let f64_type = self.llvm_context.f64_type();
+        let argstype: Vec<BasicMetadataTypeEnum> = std::iter::repeat(f64_type.into())
+            .take(fntypeexpr.args.len())
+            .collect();
+        let fn_type = f64_type.fn_type(&argstype, false);
+        let function = self
+            .llvm_module
+            .add_function(fntypeexpr.name, fn_type, None);
+        for i in 0..fntypeexpr.args.len() {
+            function
+                .get_nth_param(i as u32)
+                .unwrap()
+                .set_name(fntypeexpr.args[i].name);
+        }
+        function
+    }
+
+    fn function_codegen(self: &mut Self, functionexpr: &FunctionExpr<'a>) -> FunctionValue<'a> {
+        let function = self.fntype_codegen(&functionexpr.ty);
+        let basic_block = self.llvm_context.append_basic_block(function, "entry");
+
+        self.llvm_builder.position_at_end(basic_block);
+        self.variables.clear();
+        for i in 0..functionexpr.ty.args.len() {
+            self.variables.insert(
+                functionexpr.ty.args[i].name,
+                function.get_nth_param(i as u32).unwrap().into_float_value(),
+            );
+        }
+        let body = match &functionexpr.body {
+            ExprAST::BinaryOp(binop) => self.binop_codegen(&binop).unwrap(),
+            _ => panic!("Uh oh!"),
+        };
+        self.llvm_builder.build_return(Some(&body)).unwrap();
+        function
+    }
 }
 
 #[cfg(test)]
@@ -95,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_adder_gen() {
-        let input = "2.0 + 5.0 + 2.0 - 3.0";
+        let input = "2.0 * 5.0 + 2.0 - 3.0";
         let mut tokenstream = TokenIter::new(&input).peekable();
         let binop = match make_expr(&mut tokenstream, 0) {
             ExprAST::BinaryOp(binopexpr) => binopexpr,
@@ -119,6 +177,23 @@ mod tests {
         compiler.llvm_builder.position_at_end(basic_block);
 
         let code = compiler.binop_codegen(&binop).unwrap();
+        println!("{code}");
+    }
+
+    #[test]
+    fn test_fngen() {
+        let input = "def foo(a) 2*a*a";
+        let mut tokenstream = TokenIter::new(&input).peekable();
+        tokenstream.next();
+        let expr = make_function(&mut tokenstream);
+        let llvm_context = Context::create();
+        let mut compiler = Compiler {
+            llvm_context: &llvm_context,
+            llvm_builder: llvm_context.create_builder(),
+            llvm_module: llvm_context.create_module("sum_test"),
+            variables: HashMap::new(),
+        };
+        let code = compiler.function_codegen(&expr);
         println!("{code}");
     }
 }

@@ -28,21 +28,21 @@ pub struct BinaryOpExpr<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-struct CallOpExpr<'a> {
-    callee: &'a str,
-    args: Vec<ExprAST<'a>>,
+pub struct CallOpExpr<'a> {
+    pub callee: &'a str,
+    pub args: Vec<ExprAST<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
-struct FnTypeExpr<'a> {
-    name: &'a str,
-    args: Vec<VariableExpr<'a>>,
+pub struct FnTypeExpr<'a> {
+    pub name: &'a str,
+    pub args: Vec<VariableExpr<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
-struct FunctionExpr<'a> {
-    ty: FnTypeExpr<'a>,
-    body: ExprAST<'a>,
+pub struct FunctionExpr<'a> {
+    pub ty: FnTypeExpr<'a>,
+    pub body: ExprAST<'a>,
 }
 
 // A primitive AST node is without any sub-nodes
@@ -92,7 +92,10 @@ pub fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> Ex
             args: [lhs.unwrap(), rhs],
         })));
     }
-    lhs.unwrap()
+    match lhs {
+        Some(lhs) => lhs,
+        None => panic!("What is going on?!"),
+    }
 }
 
 fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'a> {
@@ -124,14 +127,14 @@ fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'
     }
 }
 
-fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
+pub fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
     let ty = make_signature(tokenstream);
     let body = make_expr(tokenstream, 0);
     FunctionExpr { ty, body }
 }
 
 // parsers a top level expression into an anonymous function
-fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
+pub fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
     let topty = FnTypeExpr {
         name: "",
         args: Vec::new(),
@@ -140,7 +143,7 @@ fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'
     FunctionExpr { ty: topty, body }
 }
 
-fn make_ast<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+pub fn make_ast<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
     match tokenstream.peek() {
         Some(Token::Def) => {
             tokenstream.next();
@@ -211,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_fndef() {
-        let input = "def multiply(x,y) x*y";
+        let input = "def multiply(x, y) x*y";
         let mut tokenstream = TokenIter::new(&input).peekable();
 
         let var_x = VariableExpr { name: "x" };

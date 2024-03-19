@@ -68,6 +68,34 @@ fn get_opcode<'a>(token: Option<&Token<'a>>) -> (char, i32) {
     }
 }
 
+fn make_fncall<'a>(
+    callee: Token<'a>,
+    tokenstream: &mut Peekable<TokenIter<'a>>,
+) -> Option<ExprAST<'a>> {
+    let name = match callee {
+        Token::Identifier(str) => str,
+        _ => panic!("Unparseable name of function"),
+    };
+    match tokenstream.next() {
+        Some(Token::Identifier("(")) => {}
+        _ => panic!("Unable to parse arglist for {}", name),
+    };
+    // prepare the arglist
+    let mut arglist = Vec::<ExprAST<'a>>::new();
+    loop {
+        arglist.push(make_expr(tokenstream, 0));
+        match tokenstream.next() {
+            Some(Token::Identifier(")")) => break,
+            Some(Token::Identifier(",")) => continue,
+            _ => panic!("Something horrible has happened!"),
+        };
+    }
+    Some(ExprAST::CallOp(CallOpExpr {
+        callee: name,
+        args: arglist,
+    }))
+}
+
 // should be impl for the TokenIter?
 // almost all commands in a program are actually binary operations
 // the basic commands of a asm language are usually binop:
@@ -76,7 +104,11 @@ fn get_opcode<'a>(token: Option<&Token<'a>>) -> (char, i32) {
 // this currently only makes an expression with all rhs expanded
 // a parser needs to construct the total AST
 pub fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
-    let mut lhs = make_primitive(tokenstream.next().as_ref());
+    let tmp_token = tokenstream.next();
+    let mut lhs = match tokenstream.peek() {
+        Some(Token::Identifier("(")) => make_fncall(tmp_token.unwrap(), tokenstream),
+        _ => make_primitive(tmp_token.as_ref()),
+    };
 
     loop {
         let (op, new_prec) = get_opcode(tokenstream.peek());
@@ -92,10 +124,7 @@ pub fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> Ex
             args: [lhs.unwrap(), rhs],
         })));
     }
-    match lhs {
-        Some(lhs) => lhs,
-        None => panic!("What is going on?!"),
-    }
+    lhs.unwrap()
 }
 
 fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'a> {
@@ -239,6 +268,34 @@ mod tests {
         }));
 
         let function = make_ast(&mut tokenstream);
+        assert_eq!(result, function);
+    }
+
+    #[test]
+    fn test_fncall() {
+        let input = "fib(x-1)";
+        let mut tokenstream = TokenIter::new(&input).peekable();
+
+        let var_x = VariableExpr { name: "x" };
+
+        let fntype = FnTypeExpr {
+            name: "fib",
+            args: vec![var_x],
+        };
+
+        let prim_x = ExprAST::Variable(VariableExpr { name: "x" });
+
+        let pass_arg = ExprAST::BinaryOp(Box::new(BinaryOpExpr {
+            op: '-',
+            args: [prim_x, ExprAST::Number(NumberExpr { value: 1.0 })],
+        }));
+
+        let result = ExprAST::CallOp(CallOpExpr {
+            callee: "fib",
+            args: vec![pass_arg],
+        });
+
+        let function = make_expr(&mut tokenstream, 0);
         assert_eq!(result, function);
     }
 

@@ -29,6 +29,13 @@ impl<'a> Compiler<'a> {
         match expr {
             ExprAST::Number(numexpr) => self.llvm_context.f64_type().const_float(numexpr.value),
             ExprAST::Variable(varexpr) => self.var_codegen(&varexpr).unwrap().clone(),
+            ExprAST::CallOp(callexpr) => self
+                .call_codegen(&callexpr)
+                .unwrap()
+                .try_as_basic_value()
+                .left()
+                .unwrap()
+                .into_float_value(),
             _ => panic!("Oh no!"),
         }
     }
@@ -182,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_fngen() {
-        let input = "def foo(a) 2*a*a";
+        let input = "def foo(a) 2*a*a + foo(1)";
         let mut tokenstream = TokenIter::new(&input).peekable();
         tokenstream.next();
         let expr = make_function(&mut tokenstream);

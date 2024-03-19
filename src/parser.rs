@@ -2,7 +2,7 @@ use crate::lexer::{parse_input, Token, TokenIter};
 use std::iter::Peekable;
 // all of the possible Abstract Syntax Tree node expressions
 #[derive(Debug, PartialEq)]
-enum ExprAST<'a> {
+pub enum ExprAST<'a> {
     Number(NumberExpr),
     Variable(VariableExpr<'a>),
     BinaryOp(Box<BinaryOpExpr<'a>>),
@@ -12,41 +12,41 @@ enum ExprAST<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-struct NumberExpr {
-    value: f64,
+pub struct NumberExpr {
+    pub value: f64,
 }
 
 #[derive(Debug, PartialEq)]
-struct VariableExpr<'a> {
-    name: &'a str,
+pub struct VariableExpr<'a> {
+    pub name: &'a str,
 }
 
 #[derive(Debug, PartialEq)]
-struct BinaryOpExpr<'a> {
-    op: char,
-    args: [ExprAST<'a>; 2],
+pub struct BinaryOpExpr<'a> {
+    pub op: char,
+    pub args: [ExprAST<'a>; 2],
 }
 
 #[derive(Debug, PartialEq)]
-struct CallOpExpr<'a> {
-    callee: &'a str,
-    args: Vec<ExprAST<'a>>,
+pub struct CallOpExpr<'a> {
+    pub callee: &'a str,
+    pub args: Vec<ExprAST<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
-struct FnTypeExpr<'a> {
-    name: &'a str,
-    args: Vec<VariableExpr<'a>>,
+pub struct FnTypeExpr<'a> {
+    pub name: &'a str,
+    pub args: Vec<VariableExpr<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
-struct FunctionExpr<'a> {
-    ty: FnTypeExpr<'a>,
-    body: ExprAST<'a>,
+pub struct FunctionExpr<'a> {
+    pub ty: FnTypeExpr<'a>,
+    pub body: ExprAST<'a>,
 }
 
 // A primitive AST node is without any sub-nodes
-fn make_primitive<'a>(token: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
+pub fn make_primitive<'a>(token: Option<&Token<'a>>) -> Option<ExprAST<'a>> {
     match token {
         Some(Token::Identifier(str)) => Some(ExprAST::Variable(VariableExpr { name: str })),
         Some(Token::Number(value)) => Some(ExprAST::Number(NumberExpr {
@@ -75,7 +75,7 @@ fn get_opcode<'a>(token: Option<&Token<'a>>) -> (char, i32) {
 // the prec is the precendence binding value of the operation
 // this currently only makes an expression with all rhs expanded
 // a parser needs to construct the total AST
-fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
+pub fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAST<'a> {
     let mut lhs = make_primitive(tokenstream.next().as_ref());
 
     loop {
@@ -92,7 +92,10 @@ fn make_expr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>, prec: i32) -> ExprAS
             args: [lhs.unwrap(), rhs],
         })));
     }
-    lhs.unwrap()
+    match lhs {
+        Some(lhs) => lhs,
+        None => panic!("What is going on?!"),
+    }
 }
 
 fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'a> {
@@ -124,14 +127,14 @@ fn make_signature<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FnTypeExpr<'
     }
 }
 
-fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
+pub fn make_function<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
     let ty = make_signature(tokenstream);
     let body = make_expr(tokenstream, 0);
     FunctionExpr { ty, body }
 }
 
 // parsers a top level expression into an anonymous function
-fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
+pub fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'a> {
     let topty = FnTypeExpr {
         name: "",
         args: Vec::new(),
@@ -140,7 +143,7 @@ fn make_topexpr<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> FunctionExpr<'
     FunctionExpr { ty: topty, body }
 }
 
-fn make_ast<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
+pub fn make_ast<'a>(tokenstream: &mut Peekable<TokenIter<'a>>) -> ExprAST<'a> {
     match tokenstream.peek() {
         Some(Token::Def) => {
             tokenstream.next();
@@ -211,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_fndef() {
-        let input = "def multiply(x,y) x*y";
+        let input = "def multiply(x, y) x*y";
         let mut tokenstream = TokenIter::new(&input).peekable();
 
         let var_x = VariableExpr { name: "x" };
